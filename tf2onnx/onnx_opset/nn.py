@@ -149,6 +149,20 @@ def conv_convert_inputs(ctx, node, with_kernel=False, new_kernel_shape=None,
 
         # If kernel is a constant, transpose that one if we are the only consumer.
         need_transpose = True
+        if kernel_node.op.op_type=='DequantizeLinear':
+            quantize_linear_node = kernel_node.inputs[0]
+            weights_node = quantize_linear_node.inputs[0]
+            if quantize_linear_node.op.op_type=="QuantizeLinear" and weights_node.op.op_type=="Const":
+                weights_node_val = weights_node.get_tensor_value(as_list=False)
+                weights_node_val = np.transpose(weights_node_val, permutation)
+                weights_node.set_tensor_value(weights_node_val)
+                q_axis = quantize_linear_node.attr["axis"].i
+                quantize_linear_node.attr["axis"].i = 3 - q_axis
+                # kernel_node is dequantize_linear
+                dq_axis = kernel_node.attr["axis"].i
+                kernel_node.attr["axis"].i = 3 - dq_axis
+                need_transpose = False
+        
         if kernel_node.is_const() and len(ctx.find_output_consumers(kernel_name)) == 1:
             val = kernel_node.get_tensor_value(as_list=False)
             val = np.transpose(val, permutation)
